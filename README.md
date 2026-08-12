@@ -1,45 +1,187 @@
-# CDK Ast Lambda Rest API - Lambda Packge (CALRA)
+# Lambda API Decorators
 
-## A library for AWS API Gateway/Lambda Proxy Integration
+**Define AWS Lambda API routes and configuration directly in your Python code using decorators.**
 
-CALRA allows simplified resource creation for AWS Lambda functions and Rest API resources by using decorators and setting a builder with default, common or custom values for IAM Roles, Runtimes, Timeouts, Layers, Environment values, etc.
+Lambda API Decorators provides Python decorators for defining API routes and AWS Lambda configuration alongside your Lambda handlers.
 
-This module provides the definition of decorators that are used within lambda handlers to add special configuration options for your Lambda Function.
+Instead of maintaining route and function configuration separately from your application code, you can declare HTTP methods, paths, runtimes, timeouts, memory, environment variables, layers, networking, and other Lambda settings directly on the handler.
 
-### Installation
-
-`calra_lambda` is available from PyPI as `calra-lambda`:
-
-    pip install calra-lambda
-
-You can as well rely on the [calra-example](https://https://github.com/cdk-ast-lambda-rest-api/calra-example) repository to get started.
-To take full advantage of this package, installation of [calra-cdk](https://pypi.org/project/calra-cdk/) is recommended.
-
-### Add decorators to your Lambda Handler
-
-The decorators defined within this package are:
-
-- GET, POST, PUT, DELETE, ANY are explicitly required for every handler and need to be defined with a custom path for your REST Endpoint.
-- timeout will accept an integer value that will be transformed to duration in terms of seconds for a Lambda Function.
-- memory_size will accept an integer value to specify the memory that will be assigned to each instance of your Lambda Function.
-- name and description assign a custom string value passed as parameter to your Lambda Function's name and description.
-- runtime, role, vpc. Each decorator receives a name string as identifier for a custom value defined for your stack using the [calra-cdk](https://pypi.org/project/calra-cdk/) module.
-- environment, layer and security_group decorators can receive multi arguments or a list with the names of custom environment/layers/security_groups defined for your stack using the [calra-cdk](https://pypi.org/project/calra-cdk/) module.
+Combined with **Lambda API Decorators CDK**, these definitions are used to automatically generate the corresponding AWS Lambda and Amazon API Gateway infrastructure with AWS CDK.
 
 ```python
-    from calra_lambda import *
-    import json
+from lambda_api_decorators import GET, runtime, name, memory_size
+import json
 
-    @GET('/dogs')
-    @runtime('python3.11')
-    @name('LBD-DOGS-GET')
-    @memory_size(256)
-    def lambda_handler(event, context):
-        response = {
-            'statusCode': 200,
-            'body': json.dumps({
-                'message': 'Hello World from /dogs!'
-            })
-        }
-        return response
+
+@GET("/dogs")
+@runtime("python3.11")
+@name("LBD-DOGS-GET")
+@memory_size(256)
+def lambda_handler(event, context):
+    return {
+        "statusCode": 200,
+        "body": json.dumps({
+            "message": "Hello World from /dogs!"
+        })
+    }
 ```
+
+## Installation
+
+Install Lambda API Decorators from PyPI:
+
+```bash
+pip install lambda-api-decorators
+```
+
+To generate AWS infrastructure from the decorated Lambda handlers, install the CDK integration:
+
+```bash
+pip install lambda-api-decorators-cdk
+```
+
+## Available Decorators
+
+### API Routes
+
+Every Lambda API handler must define an HTTP method and endpoint path.
+
+Available route decorators:
+
+* `GET`
+* `POST`
+* `PUT`
+* `DELETE`
+* `ANY`
+
+For example:
+
+```python
+@GET("/dogs")
+def lambda_handler(event, context):
+    ...
+```
+
+The route definition is used by the CDK integration to configure the corresponding Amazon API Gateway endpoint and Lambda integration.
+
+### Lambda Configuration
+
+Lambda API Decorators also allows Lambda configuration to be declared directly on the handler.
+
+#### `timeout`
+
+Defines the Lambda function timeout in seconds.
+
+```python
+@timeout(30)
+```
+
+#### `memory_size`
+
+Defines the amount of memory allocated to the Lambda function.
+
+```python
+@memory_size(512)
+```
+
+#### `name`
+
+Defines a custom name for the Lambda function.
+
+```python
+@name("LBD-DOGS-GET")
+```
+
+#### `description`
+
+Defines the Lambda function description.
+
+```python
+@description("Returns the list of dogs")
+```
+
+#### `runtime`
+
+References a runtime configuration defined by Lambda API Decorators CDK.
+
+```python
+@runtime("python3.11")
+```
+
+#### `role`
+
+References an IAM role defined by Lambda API Decorators CDK.
+
+```python
+@role("api-role")
+```
+
+#### `vpc`
+
+References a VPC configuration defined by Lambda API Decorators CDK.
+
+```python
+@vpc("application-vpc")
+```
+
+#### `environment`
+
+Associates one or more environment configurations with the Lambda function.
+
+```python
+@environment("database", "application")
+```
+
+#### `layer`
+
+Associates one or more Lambda Layers with the function.
+
+```python
+@layer("common-dependencies")
+```
+
+#### `security_group`
+
+Associates one or more security group configurations with the Lambda function.
+
+```python
+@security_group("lambda-security-group")
+```
+
+The referenced runtimes, IAM roles, VPCs, environment configurations, layers, and security groups are defined in the AWS CDK application using **Lambda API Decorators CDK**.
+
+## How It Works
+
+Lambda API Decorators keeps API and Lambda configuration close to the application code:
+
+```text
+Python Lambda handlers
+        │
+        │  @GET, @POST, @runtime,
+        │  @timeout, @memory_size, ...
+        ▼
+Lambda API Decorators
+        │
+        ▼
+Lambda API Decorators CDK
+        │
+        ▼
+AWS CDK
+        │
+        ├── AWS Lambda
+        ├── Amazon API Gateway
+        ├── IAM
+        ├── VPC configuration
+        └── other AWS resources
+```
+
+This allows your Lambda handlers to become the source of the API definition while AWS CDK remains responsible for generating and deploying the infrastructure.
+
+## Related Projects
+
+* **Lambda API Decorators CDK** — AWS CDK integration that generates Lambda and API Gateway infrastructure from decorated Python handlers.
+* **Lambda API Decorators Examples** — Example applications demonstrating how to use Lambda API Decorators.
+
+## License
+
+See the repository license for details.
