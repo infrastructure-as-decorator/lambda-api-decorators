@@ -2,5 +2,5 @@ pycache
 .venv
 build
 dist
-calra_lambda.egg-info
+lambda_api_decorators.egg-info
 .idea
