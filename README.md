@@ -182,6 +182,27 @@ This allows your Lambda handlers to become the source of the API definition whil
 * **Lambda API Decorators CDK** — AWS CDK integration that generates Lambda and API Gateway infrastructure from decorated Python handlers.
 * **Lambda API Decorators Examples** — Example applications demonstrating how to use Lambda API Decorators.
 
+## Releasing
+
+The Git tag is the source of truth for this package's version. Maintainers create
+and push a semantic-version tag from `main`:
+
+```bash
+git checkout main
+git pull
+
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+Pushing the tag starts the release workflow, and `v0.2.0` becomes Python package
+version `0.2.0`. Versions in this repository are independent from
+`lambda-api-decorators-cdk`.
+
+Publishing uses PyPI trusted publishing. The PyPI project must have a trusted
+publisher configured for this repository, the `release.yml` workflow, and the
+`pypi` GitHub environment.
+
 ## License
 
 See the repository license for details.

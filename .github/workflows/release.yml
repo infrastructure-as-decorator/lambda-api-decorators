@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Test and build distribution
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must match vX.Y.Z; got ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+      - name: Install build and test dependencies
+        run: |
+          python -m pip install --upgrade build pytest
+          python -m pip install --editable .
+
+      - name: Run tests
+        run: python -m pytest
+
+      - name: Build distributions
+        run: python -m build
+
+      - name: Verify distribution versions
+        env:
+          EXPECTED_VERSION: ${{ github.ref_name }}
+        run: |
+          EXPECTED_VERSION="${EXPECTED_VERSION#v}" python - <<'PY'
+          import email
+          import os
+          import pathlib
+          import tarfile
+          import zipfile
+
+          expected = os.environ["EXPECTED_VERSION"]
+          dist = pathlib.Path("dist")
+          wheels = list(dist.glob("*.whl"))
+          sdists = list(dist.glob("*.tar.gz"))
+
+          if len(wheels) != 1 or len(sdists) != 1:
+              raise SystemExit(
+                  f"Expected one wheel and one sdist, found {wheels!r} and {sdists!r}"
+              )
+
+          with zipfile.ZipFile(wheels[0]) as archive:
+              metadata_names = [
+                  name for name in archive.namelist() if name.endswith(".dist-info/METADATA")
+              ]
+              if len(metadata_names) != 1:
+                  raise SystemExit(f"Expected one wheel METADATA file: {metadata_names!r}")
+              wheel_metadata = email.message_from_bytes(archive.read(metadata_names[0]))
+
+          with tarfile.open(sdists[0], "r:gz") as archive:
+              pkg_info_members = [
+                  member
+                  for member in archive.getmembers()
+                  if pathlib.PurePosixPath(member.name).name == "PKG-INFO"
+                  and len(pathlib.PurePosixPath(member.name).parts) == 2
+              ]
+              if len(pkg_info_members) != 1:
+                  raise SystemExit(f"Expected one top-level sdist PKG-INFO: {pkg_info_members!r}")
+              pkg_info_file = archive.extractfile(pkg_info_members[0])
+              if pkg_info_file is None:
+                  raise SystemExit("Could not read sdist PKG-INFO")
+              sdist_metadata = email.message_from_binary_file(pkg_info_file)
+
+          actual = {
+              "wheel": wheel_metadata["Version"],
+              "sdist": sdist_metadata["Version"],
+          }
+          if any(version != expected for version in actual.values()):
+              raise SystemExit(f"Tag version {expected!r} does not match distributions: {actual!r}")
+          print(f"Verified wheel and sdist version: {expected}")
+          PY
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/lambda-api-decorators
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/
+
+      - name: Publish distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
