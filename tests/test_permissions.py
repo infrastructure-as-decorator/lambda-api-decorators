@@ -90,6 +90,34 @@ def test_dynamodb_requires_exactly_one_addressing_mode():
         grant("orders", "read", table_name="orders-prod")
 
 
+@pytest.mark.parametrize(
+    "args,kwargs",
+    [
+        ((None, "read"), {}),
+        ((), {"resource_key": None, "access": "read"}),
+        ((), {"table_name": None, "access": "read"}),
+    ],
+)
+def test_dynamodb_rejects_explicit_none_identifiers(args, kwargs):
+    grant = public_decorator("grant_dynamodb")
+    with pytest.raises(TypeError):
+        grant(*args, **kwargs)
+
+
+@pytest.mark.parametrize(
+    "args,kwargs",
+    [
+        ((None, "read"), {"table_name": "orders-prod"}),
+        ((), {"resource_key": None, "table_name": "orders-prod", "access": "read"}),
+        ((), {"resource_key": "orders", "table_name": None, "access": "read"}),
+    ],
+)
+def test_dynamodb_none_does_not_bypass_addressing_xor(args, kwargs):
+    grant = public_decorator("grant_dynamodb")
+    with pytest.raises(ValueError, match="requires exactly one"):
+        grant(*args, **kwargs)
+
+
 @pytest.mark.parametrize("keyword", ["index_name", "stream_arn"])
 def test_dynamodb_rejects_index_and_stream_parameters(keyword):
     grant = public_decorator("grant_dynamodb")
@@ -205,6 +233,34 @@ def test_s3_requires_exactly_one_addressing_mode():
         grant(access="read")
     with pytest.raises(ValueError):
         grant("documents", "read", bucket_name="documents-prod")
+
+
+@pytest.mark.parametrize(
+    "args,kwargs",
+    [
+        ((None, "read"), {}),
+        ((), {"resource_key": None, "access": "read"}),
+        ((), {"bucket_name": None, "access": "read"}),
+    ],
+)
+def test_s3_rejects_explicit_none_identifiers(args, kwargs):
+    grant = public_decorator("grant_s3")
+    with pytest.raises(TypeError):
+        grant(*args, **kwargs)
+
+
+@pytest.mark.parametrize(
+    "args,kwargs",
+    [
+        ((None, "read"), {"bucket_name": "documents-prod"}),
+        ((), {"resource_key": None, "bucket_name": "documents-prod", "access": "read"}),
+        ((), {"resource_key": "documents", "bucket_name": None, "access": "read"}),
+    ],
+)
+def test_s3_none_does_not_bypass_addressing_xor(args, kwargs):
+    grant = public_decorator("grant_s3")
+    with pytest.raises(ValueError, match="requires exactly one"):
+        grant(*args, **kwargs)
 
 
 def test_repeated_s3_grants_preserve_boundaries_and_order():

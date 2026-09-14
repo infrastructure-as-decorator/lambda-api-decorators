@@ -123,6 +123,20 @@ def test_metadata_collection_cannot_be_externally_mutated():
         declarations[0] = declarations[0]
 
 
+def test_decorating_callable_does_not_accumulate_class_inherited_metadata():
+    class Handler:
+        __lambda_api_decorator_invocations__ = ("unrelated class metadata",)
+
+        def __call__(self):
+            pass
+
+    handler = Handler()
+    decorated = public_decorator("runtime")("python3.12")(handler)
+
+    assert decorated is handler
+    assert_invocations(handler, [("runtime", ("python3.12",), {})])
+
+
 def test_metadata_payload_contains_only_cdk_free_python_values():
     permission = public_decorator("permission")
 
