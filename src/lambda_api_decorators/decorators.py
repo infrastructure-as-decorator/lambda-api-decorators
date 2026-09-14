@@ -3,15 +3,28 @@
 from collections.abc import Sequence
 from typing import Any, Callable, Tuple
 
-from .metadata import declaration
+from .metadata import _METADATA_ATTRIBUTE, declaration
 
 
 _MISSING = object()
 _VALID_ACCESS = ("read", "write")
+_AUTH_DECLARATIONS = ("authorizer", "public")
 
 
 def _simple(name: str, *args: Any, **kwargs: Any) -> Callable:
     return declaration(name, tuple(args), tuple(kwargs.items()))
+
+
+def _auth_declaration(name: str, args: Tuple[Any, ...]) -> Callable:
+    decorate = declaration(name, args, ())
+
+    def decorator(function):
+        existing = vars(function).get(_METADATA_ATTRIBUTE, ())
+        if any(invocation.name in _AUTH_DECLARATIONS for invocation in existing):
+            raise ValueError("a callable may have only one authentication declaration")
+        return decorate(function)
+
+    return decorator
 
 
 def GET(path):
@@ -32,6 +45,15 @@ def DELETE(path):
 
 def ANY(path):
     return _simple("ANY", path)
+
+
+def authorizer(key, /):
+    _validate_identifier(key, "key")
+    return _auth_declaration("authorizer", (key,))
+
+
+def public(function):
+    return _auth_declaration("public", ())(function)
 
 
 def memory_size(arg):
