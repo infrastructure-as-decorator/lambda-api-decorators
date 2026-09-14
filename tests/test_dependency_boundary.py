@@ -7,8 +7,19 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FORBIDDEN_DISTRIBUTIONS = {"aws-cdk-lib", "aws_cdk", "constructs", "jsii"}
-FORBIDDEN_MODULES = {"aws_cdk", "constructs", "jsii"}
+FORBIDDEN_DISTRIBUTIONS = {
+    "aws-cdk-lib",
+    "aws_cdk",
+    "constructs",
+    "jsii",
+    "lambda-api-decorators-cdk",
+}
+FORBIDDEN_MODULES = {
+    "aws_cdk",
+    "constructs",
+    "jsii",
+    "lambda_api_decorators_cdk",
+}
 
 
 def test_runtime_dependencies_are_cdk_free():

@@ -24,7 +24,7 @@ def declaration(
     invocation = DecoratorInvocation(name=name, args=args, kwargs=kwargs)
 
     def decorator(function: F) -> F:
-        existing = getattr(function, _METADATA_ATTRIBUTE, ())
+        existing = vars(function).get(_METADATA_ATTRIBUTE, ())
         setattr(function, _METADATA_ATTRIBUTE, (invocation,) + existing)
         return function
 

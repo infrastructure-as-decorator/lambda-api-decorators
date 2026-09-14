@@ -105,8 +105,8 @@ def _grant(
 
     logical_name = positional[0] if positional else resource_key
     access_value = positional[1] if len(positional) == 2 else access
-    has_logical = logical_name is not _MISSING and logical_name is not None
-    has_physical = physical_name is not _MISSING and physical_name is not None
+    has_logical = logical_name is not _MISSING
+    has_physical = physical_name is not _MISSING
 
     if has_logical == has_physical:
         raise ValueError(
@@ -114,9 +114,9 @@ def _grant(
                 decorator_name, physical_parameter
             )
         )
-    if logical_name is not _MISSING and logical_name is not None:
+    if has_logical:
         _validate_identifier(logical_name, "resource_key")
-    if physical_name is not _MISSING and physical_name is not None:
+    if has_physical:
         _validate_identifier(physical_name, physical_parameter)
     _validate_access(None if access_value is _MISSING else access_value)
 
