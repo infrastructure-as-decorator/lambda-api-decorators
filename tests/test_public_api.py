@@ -5,7 +5,7 @@ PUBLIC_DECORATORS = {
     "GET", "POST", "PUT", "DELETE", "ANY", "runtime", "timeout",
     "memory_size", "role", "vpc", "environment", "layer",
     "security_group", "name", "description", "grant_dynamodb",
-    "grant_s3", "permission",
+    "grant_s3", "permission", "authorizer", "public",
 }
 
 
