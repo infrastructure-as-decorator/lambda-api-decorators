@@ -9,7 +9,7 @@
 # https://packaging.python.org/en/latest/tutorials/packaging-projects/#choosing-a-build-backend
 [build-system]
 # A list of packages that are needed to build your package:
-requires = ["setuptools"]  # REQUIRED if [build-system] table is used
+requires = ["setuptools>=64", "setuptools-scm>=8"]  # REQUIRED if [build-system] table is used
 # The name of the Python object that frontends will use to perform the build:
 build-backend = "setuptools.build_meta"  # If not defined, then legacy behavior can happen.
 
@@ -18,7 +18,7 @@ build-backend = "setuptools.build_meta"  # If not defined, then legacy behavior 
 # https://packaging.python.org/specifications/core-metadata/#name
 name = "lambda-api-decorators"
 # https://packaging.python.org/guides/single-sourcing-package-version/
-version = "0.1.0"
+dynamic = ["version"]
 
 # https://packaging.python.org/specifications/core-metadata/#summary
 description = "Python decorators for defining AWS Lambda API routes and configuration."
@@ -95,3 +95,6 @@ Repository = "https://github.com/lambda-api-decorators/lambda-api-decorators"
 # This is configuration specific to the `setuptools` build backend.
 # If you are using a different build backend, you will need to change this.
 [tool.setuptools]
+
+[tool.setuptools_scm]
+tag_regex = "^v(?P<version>\\d+\\.\\d+\\.\\d+)$"
