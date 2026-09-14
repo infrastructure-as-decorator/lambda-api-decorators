@@ -1,119 +1,171 @@
+"""Public decorators for declaring Lambda API and configuration intent."""
+
+from collections.abc import Sequence
+from typing import Any, Callable, Tuple
+
+from .metadata import declaration
+
+
+_MISSING = object()
+_VALID_ACCESS = ("read", "write")
+
+
+def _simple(name: str, *args: Any, **kwargs: Any) -> Callable:
+    return declaration(name, tuple(args), tuple(kwargs.items()))
+
+
 def GET(path):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("GET", path)
+
 
 def PUT(path):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("PUT", path)
+
 
 def POST(path):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("POST", path)
+
 
 def DELETE(path):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("DELETE", path)
+
 
 def ANY(path):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("ANY", path)
+
 
 def memory_size(arg):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("memory_size", arg)
+
 
 def timeout(arg):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("timeout", arg)
 
-def environment(*eargs,  **kwargs):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
 
-def layer(*largs,  **kwargs):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+def environment(*eargs, **kwargs):
+    return _simple("environment", *eargs, **kwargs)
+
+
+def layer(*largs, **kwargs):
+    return _simple("layer", *largs, **kwargs)
+
 
 def runtime(arg):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("runtime", arg)
+
 
 def security_group(*sgargs):
-    def decorator(fun):
-        def wrapper(*wargs,  **kwargs):
-            result = fun(*wargs, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("security_group", *sgargs)
+
 
 def vpc(arg):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("vpc", arg)
+
 
 def role(arg):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("role", arg)
+
 
 def description(arg):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("description", arg)
+
 
 def name(arg):
-    def decorator(fun):
-        def wrapper(*args,  **kwargs):
-            result = fun(*args, **kwargs)
-            return result
-        return wrapper
-    return decorator
+    return _simple("name", arg)
+
+
+def _validate_identifier(value: Any, parameter: str) -> None:
+    if not isinstance(value, str):
+        raise TypeError("{} must be a string".format(parameter))
+    if not value.strip():
+        raise ValueError("{} must be a non-empty string".format(parameter))
+
+
+def _validate_access(access: Any) -> None:
+    if not isinstance(access, str):
+        raise TypeError("access must be a string")
+    if access not in _VALID_ACCESS:
+        raise ValueError("access must be 'read' or 'write'")
+
+
+def _grant(
+    decorator_name: str,
+    physical_parameter: str,
+    positional: Tuple[Any, ...],
+    resource_key: Any,
+    access: Any,
+    physical_name: Any,
+) -> Callable:
+    if len(positional) > 2:
+        raise TypeError("{} accepts at most two positional arguments".format(decorator_name))
+    if positional and resource_key is not _MISSING:
+        raise TypeError("resource_key was supplied more than once")
+    if len(positional) == 2 and access is not _MISSING:
+        raise TypeError("access was supplied more than once")
+
+    logical_name = positional[0] if positional else resource_key
+    access_value = positional[1] if len(positional) == 2 else access
+    has_logical = logical_name is not _MISSING and logical_name is not None
+    has_physical = physical_name is not _MISSING and physical_name is not None
+
+    if has_logical == has_physical:
+        raise ValueError(
+            "{} requires exactly one of resource_key or {}".format(
+                decorator_name, physical_parameter
+            )
+        )
+    if logical_name is not _MISSING and logical_name is not None:
+        _validate_identifier(logical_name, "resource_key")
+    if physical_name is not _MISSING and physical_name is not None:
+        _validate_identifier(physical_name, physical_parameter)
+    _validate_access(None if access_value is _MISSING else access_value)
+
+    keyword_items = []
+    if resource_key is not _MISSING:
+        keyword_items.append(("resource_key", resource_key))
+    if physical_name is not _MISSING:
+        keyword_items.append((physical_parameter, physical_name))
+    if access is not _MISSING:
+        keyword_items.append(("access", access))
+    return declaration(decorator_name, tuple(positional), tuple(keyword_items))
+
+
+def grant_dynamodb(
+    *args, resource_key=_MISSING, access=_MISSING, table_name=_MISSING
+):
+    """Declare read or cumulative write access to a DynamoDB table."""
+    return _grant(
+        "grant_dynamodb", "table_name", args, resource_key, access, table_name
+    )
+
+
+def grant_s3(*args, resource_key=_MISSING, access=_MISSING, bucket_name=_MISSING):
+    """Declare read or cumulative write access to an S3 bucket."""
+    return _grant("grant_s3", "bucket_name", args, resource_key, access, bucket_name)
+
+
+def _string_sequence(value: Any, parameter: str) -> Tuple[str, ...]:
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise TypeError("{} must be a sequence of strings".format(parameter))
+    if not value:
+        raise ValueError("{} must not be empty".format(parameter))
+
+    normalized = []
+    for member in value:
+        if not isinstance(member, str):
+            raise TypeError("{} members must be strings".format(parameter))
+        if not member.strip():
+            raise ValueError("{} members must be non-empty strings".format(parameter))
+        normalized.append(member)
+    return tuple(normalized)
+
+
+def permission(*, actions, resources):
+    """Declare a minimal IAM action/resource permission statement."""
+    normalized_actions = _string_sequence(actions, "actions")
+    normalized_resources = _string_sequence(resources, "resources")
+    return declaration(
+        "permission",
+        (),
+        (("actions", normalized_actions), ("resources", normalized_resources)),
+    )
