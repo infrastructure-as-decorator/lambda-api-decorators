@@ -1,8 +1,7 @@
 import ast
-import builtins
-import importlib
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 
@@ -13,12 +12,20 @@ FORBIDDEN_DISTRIBUTIONS = {
     "constructs",
     "jsii",
     "lambda-api-decorators-cdk",
+    "boto3",
+    "aws-lambda-powertools",
+    "pydantic",
+    "pyjwt",
 }
 FORBIDDEN_MODULES = {
     "aws_cdk",
     "constructs",
     "jsii",
     "lambda_api_decorators_cdk",
+    "boto3",
+    "aws_lambda_powertools",
+    "pydantic",
+    "jwt",
 }
 
 
@@ -47,17 +54,22 @@ def test_production_source_has_no_cdk_imports():
     assert not violations
 
 
-def test_package_import_succeeds_when_cdk_imports_are_blocked(monkeypatch):
-    real_import = builtins.__import__
+def test_package_import_succeeds_when_cdk_imports_are_blocked():
+    script = """
+import builtins
 
-    def reject_cdk_imports(name, *args, **kwargs):
-        if name.split(".")[0] in FORBIDDEN_MODULES:
-            raise AssertionError("package attempted to import {}".format(name))
-        return real_import(name, *args, **kwargs)
+forbidden_modules = {forbidden_modules!r}
+real_import = builtins.__import__
 
-    monkeypatch.setattr(builtins, "__import__", reject_cdk_imports)
-    for name in list(sys.modules):
-        if name == "lambda_api_decorators" or name.startswith("lambda_api_decorators."):
-            del sys.modules[name]
-    package = importlib.import_module("lambda_api_decorators")
-    assert package is not None
+
+def reject_forbidden_imports(name, *args, **kwargs):
+    if name.split('.')[0] in forbidden_modules:
+        raise AssertionError('package attempted to import {{}}'.format(name))
+    return real_import(name, *args, **kwargs)
+
+
+builtins.__import__ = reject_forbidden_imports
+import lambda_api_decorators
+""".format(forbidden_modules=FORBIDDEN_MODULES)
+
+    subprocess.run([sys.executable, "-c", script], check=True)

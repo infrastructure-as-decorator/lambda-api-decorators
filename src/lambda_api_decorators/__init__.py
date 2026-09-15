@@ -22,3 +22,4 @@ from .decorators import (
     timeout,
     vpc,
 )
+from .identity import CurrentUser, CurrentUserError, current_user
