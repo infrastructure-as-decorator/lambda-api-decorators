@@ -1,0 +1,65 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - "3.9"
+          - "3.10"
+          - "3.11"
+          - "3.12"
+          - "3.13"
+          - "3.14"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package and test dependency
+        run: python -m pip install . pytest
+
+      - name: Import complete public API
+        run: |
+          python - <<'PY'
+          from lambda_api_decorators import (
+              ANY,
+              DELETE,
+              GET,
+              POST,
+              PUT,
+              CurrentUser,
+              CurrentUserError,
+              authorizer,
+              current_user,
+              description,
+              environment,
+              grant_dynamodb,
+              grant_s3,
+              layer,
+              memory_size,
+              name,
+              permission,
+              public,
+              role,
+              runtime,
+              security_group,
+              timeout,
+              vpc,
+          )
+          PY
+
+      - name: Run full test suite
+        run: python -m pytest -q
