@@ -1,191 +1,216 @@
 # Lambda API Decorators
 
-**Define AWS Lambda API routes and configuration directly in your Python code using decorators.**
+**Declare AWS Lambda API routes, authentication, and configuration directly in Python.**
 
-Lambda API Decorators provides Python decorators for defining API routes and AWS Lambda configuration alongside your Lambda handlers.
-
-Instead of maintaining route and function configuration separately from your application code, you can declare HTTP methods, paths, runtimes, timeouts, memory, environment variables, layers, networking, and other Lambda settings directly on the handler.
-
-Combined with **Lambda API Decorators CDK**, these definitions are used to automatically generate the corresponding AWS Lambda and Amazon API Gateway infrastructure with AWS CDK.
-
-```python
-from lambda_api_decorators import GET, runtime, name, memory_size
-import json
-
-
-@GET("/dogs")
-@runtime("python3.11")
-@name("LBD-DOGS-GET")
-@memory_size(256)
-def lambda_handler(event, context):
-    return {
-        "statusCode": 200,
-        "body": json.dumps({
-            "message": "Hello World from /dogs!"
-        })
-    }
-```
+Lambda API Decorators is a small, CDK-free Python library. Its decorators record
+API and Lambda configuration on your handler without wrapping or replacing the
+callable. An infrastructure tool such as
+[Lambda API Decorators CDK](https://github.com/lambda-api-decorators/lambda-api-decorators-cdk)
+can consume those declarations to build AWS Lambda and API Gateway resources.
 
 ## Installation
 
-Install Lambda API Decorators from PyPI:
+Install the decorators package from PyPI:
 
 ```bash
 pip install lambda-api-decorators
 ```
 
-To generate AWS infrastructure from the decorated Lambda handlers, install the CDK integration:
+If you want to generate AWS infrastructure from the declarations, install the
+optional CDK integration separately:
 
 ```bash
 pip install lambda-api-decorators-cdk
 ```
 
-## Available Decorators
+The package supports Python 3.9 through Python 3.14 and has no runtime CDK
+dependency.
 
-### API Routes
+## Quick start
 
-Every Lambda API handler must define an HTTP method and endpoint path.
+```python
+import json
 
-Available route decorators:
+from lambda_api_decorators import GET, memory_size, runtime, timeout
 
-* `GET`
-* `POST`
-* `PUT`
-* `DELETE`
-* `ANY`
+
+@GET("/dogs")
+@runtime("python3.12")
+@timeout(30)
+@memory_size(256)
+def lambda_handler(event, context):
+    return {
+        "statusCode": 200,
+        "body": json.dumps({"message": "Hello from /dogs"}),
+    }
+```
+
+The decorators retain their normal function behavior. They only attach an
+ordered collection of declarations for an infrastructure consumer to inspect.
+You can stack multiple route and configuration decorators on one handler.
+
+## API routes
+
+The route decorators are:
+
+* `GET(path)`
+* `POST(path)`
+* `PUT(path)`
+* `DELETE(path)`
+* `ANY(path)`
+
+```python
+@GET("/dogs")
+def list_dogs(event, context):
+    ...
+
+
+@POST("/dogs")
+def create_dog(event, context):
+    ...
+```
+
+## Lambda configuration
+
+The following decorators declare Lambda properties or references to resources
+defined by the infrastructure integration:
+
+* `runtime(value)`
+* `timeout(seconds)`
+* `memory_size(megabytes)`
+* `name(value)`
+* `description(value)`
+* `role(resource_key)`
+* `vpc(resource_key)`
+* `environment(*resource_keys, **values)`
+* `layer(*resource_keys, **values)`
+* `security_group(*resource_keys)`
 
 For example:
 
 ```python
-@GET("/dogs")
-def lambda_handler(event, context):
+from lambda_api_decorators import (
+    GET,
+    environment,
+    layer,
+    name,
+    role,
+    security_group,
+    vpc,
+)
+
+
+@GET("/orders")
+@name("orders-api")
+@role("api-role")
+@vpc("application-vpc")
+@security_group("lambda-security-group")
+@environment("database", "application")
+@layer("common-dependencies")
+def get_orders(event, context):
     ...
 ```
 
-The route definition is used by the CDK integration to configure the corresponding Amazon API Gateway endpoint and Lambda integration.
+The meaning of resource keys is defined by the infrastructure consumer. This
+package does not create or look up AWS resources itself.
 
-### Lambda Configuration
+## Authentication
 
-Lambda API Decorators also allows Lambda configuration to be declared directly on the handler.
-
-#### `timeout`
-
-Defines the Lambda function timeout in seconds.
-
-```python
-@timeout(30)
-```
-
-#### `memory_size`
-
-Defines the amount of memory allocated to the Lambda function.
+Use `authorizer(key)` to associate a route with an authorizer configuration, or
+use the bare `@public` decorator for a public route. A handler can have only
+one authentication declaration.
 
 ```python
-@memory_size(512)
+from lambda_api_decorators import GET, authorizer, public
+
+
+@GET("/profile")
+@authorizer("users")
+def profile(event, context):
+    ...
+
+
+@GET("/health")
+@public
+def health(event, context):
+    ...
 ```
 
-#### `name`
-
-Defines a custom name for the Lambda function.
+`current_user(event)` extracts an already-validated identity from API Gateway
+authorizer claims. It supports REST API claims and HTTP API JWT claims:
 
 ```python
-@name("LBD-DOGS-GET")
+from lambda_api_decorators import current_user
+
+
+def profile(event, context):
+    user = current_user(event)
+    return {"statusCode": 200, "body": user.subject}
 ```
 
-#### `description`
+The returned `CurrentUser` contains `subject`, an optional `username`, and a
+read-only snapshot of `claims`. `current_user` does not authenticate tokens or
+authorize actions; malformed or missing identity data raises
+`CurrentUserError`.
 
-Defines the Lambda function description.
+## Permissions
+
+Declare resource access with the convenience decorators `grant_dynamodb` and
+`grant_s3`. Address a resource by its logical `resource_key` or by its physical
+name, and choose `read` or `write` access:
 
 ```python
-@description("Returns the list of dogs")
+from lambda_api_decorators import GET, grant_dynamodb, grant_s3
+
+
+@GET("/documents")
+@grant_dynamodb("orders", "read")
+@grant_s3(bucket_name="documents-prod", access="read")
+def documents(event, context):
+    ...
 ```
 
-#### `runtime`
-
-References a runtime configuration defined by Lambda API Decorators CDK.
+For an explicit IAM action/resource statement, use `permission`:
 
 ```python
-@runtime("python3.11")
+from lambda_api_decorators import permission
+
+
+@permission(
+    actions=["events:PutEvents"],
+    resources=["arn:aws:events:us-east-1:123456789012:event-bus/orders"],
+)
+def publish_order(event, context):
+    ...
 ```
 
-#### `role`
+`grant_dynamodb`, `grant_s3`, and `permission` only declare intent. The
+infrastructure integration is responsible for translating that intent into
+IAM policies.
 
-References an IAM role defined by Lambda API Decorators CDK.
-
-```python
-@role("api-role")
-```
-
-#### `vpc`
-
-References a VPC configuration defined by Lambda API Decorators CDK.
-
-```python
-@vpc("application-vpc")
-```
-
-#### `environment`
-
-Associates one or more environment configurations with the Lambda function.
-
-```python
-@environment("database", "application")
-```
-
-#### `layer`
-
-Associates one or more Lambda Layers with the function.
-
-```python
-@layer("common-dependencies")
-```
-
-#### `security_group`
-
-Associates one or more security group configurations with the Lambda function.
-
-```python
-@security_group("lambda-security-group")
-```
-
-The referenced runtimes, IAM roles, VPCs, environment configurations, layers, and security groups are defined in the AWS CDK application using **Lambda API Decorators CDK**.
-
-## How It Works
-
-Lambda API Decorators keeps API and Lambda configuration close to the application code:
+## How it fits together
 
 ```text
-Python Lambda handlers
-        │
-        │  @GET, @POST, @runtime,
-        │  @timeout, @memory_size, ...
-        ▼
+Python handler
+    │  @GET, @authorizer, @runtime, @permission, ...
+    ▼
 Lambda API Decorators
-        │
-        ▼
-Lambda API Decorators CDK
-        │
-        ▼
-AWS CDK
-        │
-        ├── AWS Lambda
-        ├── Amazon API Gateway
-        ├── IAM
-        ├── VPC configuration
-        └── other AWS resources
+    │  ordered, CDK-free declarations
+    ▼
+Infrastructure consumer (for example Lambda API Decorators CDK)
+    ▼
+AWS Lambda, API Gateway, IAM, VPC, and other resources
 ```
 
-This allows your Lambda handlers to become the source of the API definition while AWS CDK remains responsible for generating and deploying the infrastructure.
+## Related projects
 
-## Related Projects
-
-* **Lambda API Decorators CDK** — AWS CDK integration that generates Lambda and API Gateway infrastructure from decorated Python handlers.
-* **Lambda API Decorators Examples** — Example applications demonstrating how to use Lambda API Decorators.
+* [Lambda API Decorators CDK](https://github.com/lambda-api-decorators/lambda-api-decorators-cdk) — CDK integration that consumes handler declarations.
+* [Lambda API Decorators Examples](https://github.com/lambda-api-decorators/lambda-api-decorators-examples) — example applications.
 
 ## Releasing
 
-The Git tag is the source of truth for this package's version. Maintainers create
-and push a semantic-version tag from `main`:
+The Git tag is the source of truth for this package's version. Maintainers
+create and push a semantic-version tag from `main`:
 
 ```bash
 git checkout main
@@ -205,4 +230,4 @@ publisher configured for this repository, the `release.yml` workflow, and the
 
 ## License
 
-See the repository license for details.
+See [LICENSE](LICENSE) for details.
