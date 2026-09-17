@@ -84,9 +84,10 @@ dependencies = [
 # maintainers, and where to support the project financially. The key is
 # what's used to render the link text on PyPI.
 [project.urls]
-Homepage = "https://github.com/lambda-api-decorators/lambda-api-decorators"
-Repository = "https://github.com/lambda-api-decorators/lambda-api-decorators"
-"Bug Reports" = "https://github.com/lambda-api-decorators/lambda-api-decorators/issues"
+Homepage = "https://infrastructure-as-decorator.github.io/"
+Documentation = "https://infrastructure-as-decorator.github.io/docs/introduction"
+Repository = "https://github.com/infrastructure-as-decorator/lambda-api-decorators"
+"Bug Reports" = "https://github.com/infrastructure-as-decorator/lambda-api-decorators/issues"
 
 # The following would provide a command line executable called `sample`
 # which executes the function `main` from this package when invoked.

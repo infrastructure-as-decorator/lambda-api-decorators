@@ -5,7 +5,7 @@
 Lambda API Decorators is a small, CDK-free Python library. Its decorators record
 API and Lambda configuration on your handler without wrapping or replacing the
 callable. An infrastructure tool such as
-[Lambda API Decorators CDK](https://github.com/lambda-api-decorators/lambda-api-decorators-cdk)
+[Lambda API Decorators CDK](https://github.com/infrastructure-as-decorator/lambda-api-decorators-cdk)
 can consume those declarations to build AWS Lambda and API Gateway resources.
 
 ## Installation
@@ -204,8 +204,8 @@ AWS Lambda, API Gateway, IAM, VPC, and other resources
 
 ## Related projects
 
-* [Lambda API Decorators CDK](https://github.com/lambda-api-decorators/lambda-api-decorators-cdk) — CDK integration that consumes handler declarations.
-* [Lambda API Decorators Examples](https://github.com/lambda-api-decorators/lambda-api-decorators-examples) — example applications.
+* [Lambda API Decorators CDK](https://github.com/infrastructure-as-decorator/lambda-api-decorators-cdk) — CDK integration that consumes handler declarations.
+* [Lambda API Decorators Examples](https://github.com/infrastructure-as-decorator/lambda-api-decorators-examples) — example applications.
 
 ## Releasing
 
