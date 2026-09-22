@@ -9,10 +9,41 @@ from .metadata import _METADATA_ATTRIBUTE, declaration
 _MISSING = object()
 _VALID_ACCESS = ("read", "write")
 _AUTH_DECLARATIONS = ("authorizer", "public")
+_HTTP_DECLARATIONS = ("GET", "POST", "PUT", "DELETE", "ANY")
 
 
 def _simple(name: str, *args: Any, **kwargs: Any) -> Callable:
     return declaration(name, tuple(args), tuple(kwargs.items()))
+
+
+def _http(name: str, path: Any) -> Callable:
+    decorate = declaration(name, (path,), ())
+
+    def decorator(function):
+        existing = vars(function).get(_METADATA_ATTRIBUTE, ())
+        routes = [
+            invocation
+            for invocation in existing
+            if invocation.name in _HTTP_DECLARATIONS
+        ]
+        if routes:
+            found_routes = [
+                (invocation.name, invocation.args[0]) for invocation in routes
+            ]
+            found_routes.append((name, path))
+            found_routes.sort()
+            rendered_routes = ", ".join(
+                "{} {}".format(method, route) for method, route in found_routes
+            )
+            raise ValueError(
+                "Lambda handler {!r} declares multiple routes: {}. "
+                "Each handler must declare exactly one HTTP route.".format(
+                    function.__name__, rendered_routes
+                )
+            )
+        return decorate(function)
+
+    return decorator
 
 
 def _auth_declaration(name: str, args: Tuple[Any, ...]) -> Callable:
@@ -28,23 +59,23 @@ def _auth_declaration(name: str, args: Tuple[Any, ...]) -> Callable:
 
 
 def GET(path):
-    return _simple("GET", path)
+    return _http("GET", path)
 
 
 def PUT(path):
-    return _simple("PUT", path)
+    return _http("PUT", path)
 
 
 def POST(path):
-    return _simple("POST", path)
+    return _http("POST", path)
 
 
 def DELETE(path):
-    return _simple("DELETE", path)
+    return _http("DELETE", path)
 
 
 def ANY(path):
-    return _simple("ANY", path)
+    return _http("ANY", path)
 
 
 def authorizer(key, /):
