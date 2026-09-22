@@ -281,18 +281,13 @@ def test_auth_decorators_ignore_inherited_callable_metadata(name):
     assert_invocations(handler, [(name, expected_args, {})])
 
 
-def test_multiple_routes_with_authorizer_are_retained_in_lexical_order():
+def test_multiple_routes_with_authorizer_are_rejected():
     GET = public_decorator("GET")
     POST = public_decorator("POST")
     authorizer = public_decorator("authorizer")
 
-    @GET("/a")
-    @POST("/b")
-    @authorizer("users")
     def handler():
         pass
 
-    assert_invocations(
-        handler,
-        [("GET", ("/a",), {}), ("POST", ("/b",), {}), ("authorizer", ("users",), {})],
-    )
+    with pytest.raises(ValueError, match="multiple routes"):
+        GET("/a")(POST("/b")(authorizer("users")(handler)))

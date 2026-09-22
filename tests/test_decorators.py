@@ -23,18 +23,95 @@ def test_http_decorator_records_its_invocation(decorator_name, path):
     assert_invocations(handler, [(decorator_name, (path,), {})])
 
 
-def test_stacked_http_decorators_preserve_lexical_order():
+HTTP_DECORATORS = ("GET", "POST", "PUT", "DELETE", "ANY")
+
+
+@pytest.mark.parametrize("second_name", HTTP_DECORATORS)
+def test_any_second_public_http_decorator_is_rejected(second_name):
+    outer = public_decorator("GET")
+    inner = public_decorator(second_name)
+
+    def lambda_handler():
+        pass
+
+    with pytest.raises(ValueError, match="multiple routes"):
+        outer("/outer")(inner("/inner")(lambda_handler))
+
+
+@pytest.mark.parametrize(
+    "outer_name,inner_name",
+    [(outer, inner) for outer in HTTP_DECORATORS for inner in HTTP_DECORATORS if outer != inner],
+)
+def test_different_http_methods_are_rejected(outer_name, inner_name):
+    outer = public_decorator(outer_name)
+    inner = public_decorator(inner_name)
+
+    def lambda_handler():
+        pass
+
+    with pytest.raises(ValueError):
+        outer("/orders")(inner("/orders/search")(lambda_handler))
+
+
+@pytest.mark.parametrize("decorator_name", HTTP_DECORATORS)
+def test_two_routes_for_the_same_http_method_are_rejected(decorator_name):
+    decorator = public_decorator(decorator_name)
+
+    def lambda_handler():
+        pass
+
+    with pytest.raises(ValueError):
+        decorator("/orders")(decorator("/archived-orders")(lambda_handler))
+
+
+def test_route_error_is_independent_of_decorator_order_and_identifies_handler_routes():
     GET = public_decorator("GET")
     POST = public_decorator("POST")
 
-    @GET("/orders")
-    @POST("/orders")
-    def handler():
+    def lambda_handler():
         pass
 
+    with pytest.raises(ValueError) as first:
+        GET("/orders")(POST("/orders/search")(lambda_handler))
+
+    def lambda_handler():
+        pass
+
+    with pytest.raises(ValueError) as second:
+        POST("/orders/search")(GET("/orders")(lambda_handler))
+
+    expected = (
+        "Lambda handler 'lambda_handler' declares multiple routes: "
+        "GET /orders, POST /orders/search. "
+        "Each handler must declare exactly one HTTP route."
+    )
+    assert str(first.value) == expected
+    assert str(second.value) == expected
+
+
+def test_non_http_handler_metadata_remains_functional_with_one_route():
+    GET = public_decorator("GET")
+    runtime = public_decorator("runtime")
+    permission = public_decorator("permission")
+
+    @GET("/orders")
+    @runtime("python3.12")
+    @permission(actions=["orders:Read"], resources=["orders"])
+    def lambda_handler(event):
+        return event
+
+    assert lambda_handler({"ok": True}) == {"ok": True}
     assert_invocations(
-        handler,
-        [("GET", ("/orders",), {}), ("POST", ("/orders",), {})],
+        lambda_handler,
+        [
+            ("GET", ("/orders",), {}),
+            ("runtime", ("python3.12",), {}),
+            (
+                "permission",
+                (),
+                {"actions": ("orders:Read",), "resources": ("orders",)},
+            ),
+        ],
     )
 
 
