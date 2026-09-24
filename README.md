@@ -1,233 +1,262 @@
 # Lambda API Decorators
 
-**Declare AWS Lambda API routes, authentication, and configuration directly in Python.**
+Lightweight, CDK-free Python decorators for declaring AWS Lambda API routes
+and configuration intent. The package records ordered metadata, preserves the
+original callable, creates no infrastructure, and performs no request routing
+at runtime. [Read the central documentation](https://infrastructure-as-decorator.github.io/)
+for the complete architecture.
 
-Lambda API Decorators is a small, CDK-free Python library. Its decorators record
-API and Lambda configuration on your handler without wrapping or replacing the
-callable. An infrastructure tool such as
-[Lambda API Decorators CDK](https://github.com/infrastructure-as-decorator/lambda-api-decorators-cdk)
-can consume those declarations to build AWS Lambda and API Gateway resources.
+`lambda-api-decorators-cdk` can interpret this metadata to create independent
+Lambda functions and connect them to API Gateway. Sharing a Python module does
+not create a runtime router or imply one monolithic Lambda.
 
-## Installation
-
-Install the decorators package from PyPI:
+## Installation and compatibility
 
 ```bash
 pip install lambda-api-decorators
 ```
 
-If you want to generate AWS infrastructure from the declarations, install the
-optional CDK integration separately:
+The package supports Python 3.9–3.14 and has no runtime dependencies. The CDK
+consumer is a separate package:
 
 ```bash
 pip install lambda-api-decorators-cdk
 ```
 
-The package supports Python 3.9 through Python 3.14 and has no runtime CDK
-dependency.
+The two packages are released and versioned independently.
 
 ## Quick start
+
+This complete example declares one route, returns a proxy-compatible JSON
+response, and adds configuration and permission metadata:
 
 ```python
 import json
 
-from lambda_api_decorators import GET, memory_size, runtime, timeout
+from lambda_api_decorators import GET, environment, permission, runtime
 
 
-@GET("/dogs")
+@GET("/health")
 @runtime("python3.12")
-@timeout(30)
-@memory_size(256)
-def lambda_handler(event, context):
+@environment("production")
+@permission(actions=["logs:CreateLogGroup"], resources=["*"])
+def health(event, context):
     return {
         "statusCode": 200,
-        "body": json.dumps({"message": "Hello from /dogs"}),
+        "headers": {"content-type": "application/json"},
+        "body": json.dumps({"status": "ok"}),
     }
 ```
 
-The decorators retain their normal function behavior. They only attach an
-ordered collection of declarations for an infrastructure consumer to inspect.
-You can stack multiple route and configuration decorators on one handler.
+The decorators leave `health` callable as a normal Python function. A
+CDK-aware consumer reads its metadata when synthesizing infrastructure.
 
-## API routes
+## Routes
 
-The route decorators are:
+The public HTTP decorators are `GET`, `POST`, `PUT`, `DELETE`, and `ANY`.
+Each handler can declare at most one HTTP route. Applying a second route to
+the same function raises `ValueError`.
 
-* `GET(path)`
-* `POST(path)`
-* `PUT(path)`
-* `DELETE(path)`
-* `ANY(path)`
+Several independently decorated functions may share a module:
 
 ```python
-@GET("/dogs")
-def list_dogs(event, context):
-    ...
+from lambda_api_decorators import DELETE, GET, POST
 
 
-@POST("/dogs")
-def create_dog(event, context):
-    ...
+@GET("/orders")
+def list_orders(event, context):
+    return {"statusCode": 200, "body": "[]"}
+
+
+@POST("/orders")
+def create_order(event, context):
+    return {"statusCode": 201, "body": "{}"}
+
+
+@DELETE("/orders/{order_id}")
+def delete_order(event, context):
+    return {"statusCode": 204, "body": ""}
 ```
 
-## Lambda configuration
+`lambda-api-decorators-cdk` can turn these handlers into separate Lambdas.
+There is no runtime routing layer and sharing a file does not make a single
+Lambda or a route accumulator.
 
-The following decorators declare Lambda properties or references to resources
-defined by the infrastructure integration:
+This is intentionally invalid:
 
-* `runtime(value)`
-* `timeout(seconds)`
-* `memory_size(megabytes)`
-* `name(value)`
-* `description(value)`
-* `role(resource_key)`
-* `vpc(resource_key)`
-* `environment(*resource_keys, **values)`
-* `layer(*resource_keys, **values)`
-* `security_group(*resource_keys)`
+```python
+from lambda_api_decorators import GET, POST
 
-For example:
+
+@GET("/orders")
+@POST("/orders")
+def invalid_handler(event, context):
+    return {"statusCode": 200, "body": "invalid"}
+```
+
+It raises `ValueError` while the decorators are applied.
+
+## Lambda configuration metadata
+
+The configuration decorators and their public argument shapes are:
 
 ```python
 from lambda_api_decorators import (
-    GET,
+    description,
     environment,
     layer,
+    memory_size,
     name,
     role,
+    runtime,
     security_group,
+    timeout,
     vpc,
 )
 
 
-@GET("/orders")
-@name("orders-api")
-@role("api-role")
+@runtime("python3.12")
+@timeout(30)
+@memory_size(512)
+@name("orders-handler")
+@description("Handles orders")
+@role("orders-role")
 @vpc("application-vpc")
-@security_group("lambda-security-group")
-@environment("database", "application")
-@layer("common-dependencies")
-def get_orders(event, context):
-    ...
+@environment("production")
+@layer("shared")
+@security_group("orders-sg")
+def configured_handler(event, context):
+    return {"statusCode": 200, "body": "ok"}
 ```
 
-The meaning of resource keys is defined by the infrastructure consumer. This
-package does not create or look up AWS resources itself.
+The logical keys for roles, VPCs, environments, Layers, and security groups
+are resolved by the infrastructure consumer. The runtime package does not
+own or expose those registries and does not apply IAM or create AWS resources.
 
 ## Authentication
 
-Use `authorizer(key)` to associate a route with an authorizer configuration, or
-use the bare `@public` decorator for a public route. A handler can have only
-one authentication declaration.
+Use one authentication declaration per handler:
 
 ```python
 from lambda_api_decorators import GET, authorizer, public
 
 
-@GET("/profile")
+@GET("/users/me")
 @authorizer("users")
-def profile(event, context):
-    ...
+def me(event, context):
+    return {"statusCode": 200, "body": "{}"}
 
 
 @GET("/health")
 @public
 def health(event, context):
-    ...
+    return {"statusCode": 200, "body": "ok"}
 ```
 
-`current_user(event)` extracts an already-validated identity from API Gateway
-authorizer claims. It supports REST API claims and HTTP API JWT claims:
+`@public` is used without parentheses. A handler accepts one authentication
+declaration, and authentication is independent from its route declaration.
+
+## `current_user`
+
+`current_user(event)` reads claims already placed in an authorized API Gateway
+event. It supports both shapes:
+
+- REST API: `requestContext.authorizer.claims`
+- HTTP API v2 JWT: `requestContext.authorizer.jwt.claims`
+
+It returns a frozen `CurrentUser` with `subject`, optional `username`, and
+read-only `claims`. `subject` comes from the `sub` claim. `username` prefers
+`cognito:username` and then `username`. Malformed or missing identity data
+raises `CurrentUserError`.
 
 ```python
-from lambda_api_decorators import current_user
+from lambda_api_decorators import CurrentUser, CurrentUserError, current_user
 
 
-def profile(event, context):
-    user = current_user(event)
+def identify(event, context):
+    try:
+        user: CurrentUser = current_user(event)
+    except CurrentUserError:
+        return {"statusCode": 401, "body": "unauthorized"}
     return {"statusCode": 200, "body": user.subject}
 ```
 
-The returned `CurrentUser` contains `subject`, an optional `username`, and a
-read-only snapshot of `claims`. `current_user` does not authenticate tokens or
-authorize actions; malformed or missing identity data raises
-`CurrentUserError`.
+This helper does not verify tokens, authenticate, authorize, or call AWS. It
+only extracts and validates the supported claim shape.
 
 ## Permissions
 
-Declare resource access with the convenience decorators `grant_dynamodb` and
-`grant_s3`. Address a resource by its logical `resource_key` or by its physical
-name, and choose `read` or `write` access:
+DynamoDB and S3 grants accept a logical registry key or a physical name, and
+an access value of `read` or `write`:
 
 ```python
-from lambda_api_decorators import GET, grant_dynamodb, grant_s3
+from lambda_api_decorators import grant_dynamodb, grant_s3
 
 
-@GET("/documents")
 @grant_dynamodb("orders", "read")
-@grant_s3(bucket_name="documents-prod", access="read")
-def documents(event, context):
-    ...
+@grant_dynamodb("orders", "write")
+@grant_s3("documents", "read")
+def orders(event, context):
+    return {"statusCode": 200, "body": "ok"}
 ```
 
-For an explicit IAM action/resource statement, use `permission`:
+The physical-name forms are also valid:
+
+```python
+from lambda_api_decorators import grant_dynamodb, grant_s3
+
+
+@grant_dynamodb(table_name="orders-prod", access="read")
+@grant_s3(bucket_name="documents-prod", access="read")
+def physical_resources(event, context):
+    return {"statusCode": 200, "body": "ok"}
+```
+
+Exactly one of the logical key (`resource_key`) and physical name must be
+provided. `read` is a read grant; `write` represents the native cumulative
+read/write grant. There is no third combined access value. These decorators record
+intent and do not apply IAM by themselves.
+
+For minimal custom IAM statements, use `permission`:
 
 ```python
 from lambda_api_decorators import permission
 
 
-@permission(
-    actions=["events:PutEvents"],
-    resources=["arn:aws:events:us-east-1:123456789012:event-bus/orders"],
-)
-def publish_order(event, context):
-    ...
+@permission(actions=["events:PutEvents"], resources=["arn:aws:events:*:*:event-bus/orders"])
+def publish(event, context):
+    return {"statusCode": 202, "body": "accepted"}
 ```
 
-`grant_dynamodb`, `grant_s3`, and `permission` only declare intent. The
-infrastructure integration is responsible for translating that intent into
-IAM policies.
+Its contract is limited to `actions` and `resources`. It does not support
+`conditions`, `principals`, `effect`, `not_actions`, or `sid`.
 
-## How it fits together
+## Metadata model
 
-```text
-Python handler
-    │  @GET, @authorizer, @runtime, @permission, ...
-    ▼
-Lambda API Decorators
-    │  ordered, CDK-free declarations
-    ▼
-Infrastructure consumer (for example Lambda API Decorators CDK)
-    ▼
-AWS Lambda, API Gateway, IAM, VPC, and other resources
-```
+Declarations are recorded in lexical order as independent invocations, while
+the original callable and its behavior are preserved. This makes the metadata
+straightforward to inspect without adding a runtime framework. The package is
+deliberately CDK-free; infrastructure interpretation belongs to the separate
+CDK package.
 
-## Related projects
+## Links
 
-* [Lambda API Decorators CDK](https://github.com/infrastructure-as-decorator/lambda-api-decorators-cdk) — CDK integration that consumes handler declarations.
-* [Lambda API Decorators Examples](https://github.com/infrastructure-as-decorator/lambda-api-decorators-examples) — example applications.
+- [Documentation](https://infrastructure-as-decorator.github.io/)
+- [Runtime package](https://github.com/infrastructure-as-decorator/lambda-api-decorators)
+- [CDK package](https://github.com/infrastructure-as-decorator/lambda-api-decorators-cdk)
+- [Integrated examples](https://github.com/infrastructure-as-decorator/lambda-api-decorators-examples)
+- [Organization](https://github.com/infrastructure-as-decorator/)
 
-## Releasing
+## Releases
 
-The Git tag is the source of truth for this package's version. Maintainers
-create and push a semantic-version tag from `main`:
+Tags are the source of the package version through `setuptools-scm`. Release
+the runtime package independently from the CDK package:
 
 ```bash
-git checkout main
-git pull
-
-git tag v0.2.0
-git push origin v0.2.0
+git switch main
+git pull --ff-only
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
-Pushing the tag starts the release workflow, and `v0.2.0` becomes Python package
-version `0.2.0`. Versions in this repository are independent from
-`lambda-api-decorators-cdk`.
-
-Publishing uses PyPI trusted publishing. The PyPI project must have a trusted
-publisher configured for this repository, the `release.yml` workflow, and the
-`pypi` GitHub environment.
-
-## License
-
-See [LICENSE](LICENSE) for details.
+The release workflow validates the tag and uses PyPI trusted publishing.
