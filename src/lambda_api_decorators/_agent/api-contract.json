@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "distribution": "lambda-api-decorators",
+  "import_package": "lambda_api_decorators",
+  "exports": [
+    "ANY", "DELETE", "GET", "POST", "PUT", "authorizer", "description",
+    "environment", "grant_dynamodb", "grant_s3", "layer", "memory_size",
+    "name", "permission", "public", "role", "runtime", "security_group",
+    "timeout", "vpc", "CurrentUser", "CurrentUserError", "current_user"
+  ],
+  "functions": [
+    {"name": "current_user", "signature": "current_user(event: Mapping[str, Any]) -> CurrentUser", "parameters": [{"name": "event", "type": "Mapping[str, Any]", "required": true}], "returns": {"type": "CurrentUser"}}
+  ],
+  "decorators": [
+    {"name": "GET", "signature": "GET(path)", "usage": "@GET('/items')", "parameters": [{"name": "path", "required": true}]},
+    {"name": "POST", "signature": "POST(path)", "usage": "@POST('/items')", "parameters": [{"name": "path", "required": true}]},
+    {"name": "PUT", "signature": "PUT(path)", "usage": "@PUT('/items/{id}')", "parameters": [{"name": "path", "required": true}]},
+    {"name": "DELETE", "signature": "DELETE(path)", "usage": "@DELETE('/items/{id}')", "parameters": [{"name": "path", "required": true}]},
+    {"name": "ANY", "signature": "ANY(path)", "usage": "@ANY('/items')", "parameters": [{"name": "path", "required": true}]},
+    {"name": "authorizer", "signature": "authorizer(key, /)", "usage": "@authorizer('users')", "parameters": [{"name": "key", "type": "str", "required": true}]},
+    {"name": "public", "signature": "public(function)", "usage": "@public", "parameters": [{"name": "function", "required": true}]},
+    {"name": "memory_size", "signature": "memory_size(arg)", "usage": "@memory_size(512)", "parameters": [{"name": "arg", "required": true}]},
+    {"name": "timeout", "signature": "timeout(arg)", "usage": "@timeout(30)", "parameters": [{"name": "arg", "required": true}]},
+    {"name": "environment", "signature": "environment(*eargs, **kwargs)", "usage": "@environment(DB_TABLE='items')", "parameters": [{"name": "eargs", "kind": "var_positional", "required": false}, {"name": "kwargs", "kind": "var_keyword", "required": false}]},
+    {"name": "layer", "signature": "layer(*largs, **kwargs)", "usage": "@layer('shared')", "parameters": [{"name": "largs", "kind": "var_positional", "required": false}, {"name": "kwargs", "kind": "var_keyword", "required": false}]},
+    {"name": "runtime", "signature": "runtime(arg)", "usage": "@runtime('python3.11')", "parameters": [{"name": "arg", "required": true}]},
+    {"name": "security_group", "signature": "security_group(*sgargs)", "usage": "@security_group('private')", "parameters": [{"name": "sgargs", "kind": "var_positional", "required": false}]},
+    {"name": "vpc", "signature": "vpc(arg)", "usage": "@vpc('main')", "parameters": [{"name": "arg", "required": true}]},
+    {"name": "role", "signature": "role(arg)", "usage": "@role('execution')", "parameters": [{"name": "arg", "required": true}]},
+    {"name": "description", "signature": "description(arg)", "usage": "@description('List items')", "parameters": [{"name": "arg", "required": true}]},
+    {"name": "name", "signature": "name(arg)", "usage": "@name('list-items')", "parameters": [{"name": "arg", "required": true}]},
+    {"name": "grant_dynamodb", "signature": "grant_dynamodb(*args, resource_key=_MISSING, access=_MISSING, table_name=_MISSING)", "usage": "@grant_dynamodb(resource_key='orders', access='read')", "parameters": [{"name": "resource_key", "required": false}, {"name": "access", "required": false}, {"name": "table_name", "required": false}]},
+    {"name": "grant_s3", "signature": "grant_s3(*args, resource_key=_MISSING, access=_MISSING, bucket_name=_MISSING)", "usage": "@grant_s3(resource_key='uploads', access='write')", "parameters": [{"name": "resource_key", "required": false}, {"name": "access", "required": false}, {"name": "bucket_name", "required": false}]},
+    {"name": "permission", "signature": "permission(*, actions, resources)", "usage": "@permission(actions=['s3:GetObject'], resources=['*'])", "parameters": [{"name": "actions", "kind": "keyword_only", "required": true}, {"name": "resources", "kind": "keyword_only", "required": true}]}
+  ],
+  "classes": [
+    {"name": "CurrentUser", "signature": "CurrentUser(subject: str, username: Optional[str], claims: Mapping[str, Any])", "methods": []}
+  ],
+  "exceptions": ["CurrentUserError"],
+  "behavior_ref": "behavior.md"
+}
