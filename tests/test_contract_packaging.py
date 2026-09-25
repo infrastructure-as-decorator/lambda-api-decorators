@@ -20,3 +20,15 @@ def test_contract_declares_all_package_root_exports():
     exports = set(json.loads(contract_path.read_text())["exports"])
     package_exports = {name for name in vars(package) if not name.startswith("_") and not isinstance(getattr(package, name), types.ModuleType)}
     assert exports <= package_exports
+
+
+def test_contract_captures_relevant_public_signatures_and_usage():
+    contract_path = Path(__file__).parents[1] / "src/lambda_api_decorators/_agent/api-contract.json"
+    contract = json.loads(contract_path.read_text())
+    decorators = {item["name"]: item for item in contract["decorators"]}
+    assert decorators["GET"]["signature"] == "GET(path)"
+    assert decorators["GET"]["usage"] == "@GET('/items')"
+    assert decorators["authorizer"]["signature"] == "authorizer(key, /)"
+    assert decorators["permission"]["parameters"][-1]["name"] == "resources"
+    current_user = next(item for item in contract["functions"] if item["name"] == "current_user")
+    assert current_user["returns"]["type"] == "CurrentUser"
