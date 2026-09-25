@@ -99,5 +99,8 @@ Repository = "https://github.com/infrastructure-as-decorator/lambda-api-decorato
 # If you are using a different build backend, you will need to change this.
 [tool.setuptools]
 
+[tool.setuptools.package-data]
+lambda_api_decorators = ["_agent/api-contract.json", "_agent/behavior.md"]
+
 [tool.setuptools_scm]
 tag_regex = "^v(?P<version>\\d+\\.\\d+\\.\\d+)$"
