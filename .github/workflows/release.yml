@@ -95,6 +95,9 @@ jobs:
           print(f"Verified wheel and sdist version: {expected}")
           PY
 
+      - name: Verify packaged API contract
+        run: python tests/verify_contract_artifacts.py dist
+
       - name: Upload distributions
         uses: actions/upload-artifact@v4
         with:
